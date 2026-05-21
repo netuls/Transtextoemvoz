@@ -4,7 +4,6 @@ let currentObjectURL = null;
 document.getElementById('txt').addEventListener('input', function () {
   document.getElementById('char-count').textContent = this.value.length + ' caracteres';
 });
-
 document.getElementById('stability').addEventListener('input', function () {
   document.getElementById('stab-v').textContent = this.value;
 });
@@ -27,38 +26,8 @@ function setKeyStatus(msg, ok) {
   el.style.color = ok ? '#3B6D11' : '#A32D2D';
 }
 
-function ehVozBrasileira(v) {
-  const nome = (v.name || '').toLowerCase();
-  const labels = v.labels || {};
-  const accent = (labels.accent || '').toLowerCase();
-  const language = (labels.language || '').toLowerCase();
-  const description = (labels.description || '').toLowerCase();
-
-  return (
-    accent.includes('brazilian') ||
-    accent.includes('brasil') ||
-    accent.includes('portuguese') ||
-    language.includes('portuguese') ||
-    language.includes('pt-br') ||
-    language.includes('pt_br') ||
-    description.includes('brazilian') ||
-    description.includes('português') ||
-    description.includes('portuguese') ||
-    nome.includes('brasil') ||
-    nome.includes('portuguese') ||
-    nome.includes('luciana') ||
-    nome.includes('vitoria') ||
-    nome.includes('vitória') ||
-    nome.includes('camila') ||
-    nome.includes('fernanda') ||
-    nome.includes('ricardo') ||
-    nome.includes('antonio') ||
-    nome.includes('antônio')
-  );
-}
-
 async function carregarVozes(key) {
-  setStatus('Carregando vozes em português brasileiro...');
+  setStatus('Carregando vozes disponíveis...');
   const sel = document.getElementById('voice');
   sel.innerHTML = '<option value="">Carregando...</option>';
   document.getElementById('cors-aviso').style.display = 'none';
@@ -66,10 +35,7 @@ async function carregarVozes(key) {
   try {
     const res = await fetch('https://api.elevenlabs.io/v1/voices', {
       method: 'GET',
-      headers: {
-        'xi-api-key': key,
-        'Accept': 'application/json'
-      }
+      headers: { 'xi-api-key': key, 'Accept': 'application/json' }
     });
 
     if (res.status === 401) {
@@ -87,43 +53,42 @@ async function carregarVozes(key) {
 
     const data = await res.json();
 
-    // Filtra vozes brasileiras
-    const vozesБР = data.voices.filter(ehVozBrasileira);
-
-    // Se não achar nenhuma com o filtro, mostra todas com aviso
-    const vozes = vozesБР.length > 0 ? vozesБР : data.voices;
-    const aviso = vozesБР.length === 0;
+    // Somente vozes premade funcionam no plano gratuito
+    const premade = data.voices.filter(v => v.category === 'premade');
 
     sel.innerHTML = '';
 
-    if (aviso) {
-      const og = document.createElement('optgroup');
-      og.label = '⚠️ Nenhuma voz pt-BR encontrada — mostrando todas';
-      vozes.forEach(v => {
-        const o = document.createElement('option');
-        o.value = v.voice_id;
-        const gender = v.labels && v.labels.gender ? v.labels.gender : '';
-        o.textContent = v.name + (gender ? ' — ' + gender : '');
-        og.appendChild(o);
-      });
-      sel.appendChild(og);
-      setStatus('Nenhuma voz pt-BR encontrada. Mostrando todas as ' + vozes.length + ' vozes disponíveis.');
-    } else {
-      const og = document.createElement('optgroup');
-      og.label = '🇧🇷 Vozes em Português Brasileiro';
-      vozes.forEach(v => {
-        const o = document.createElement('option');
-        o.value = v.voice_id;
-        const gender = v.labels && v.labels.gender ? v.labels.gender : '';
-        const accent = v.labels && v.labels.accent ? v.labels.accent : '';
-        const desc = [gender, accent].filter(Boolean).join(', ');
-        o.textContent = v.name + (desc ? ' — ' + desc : '');
-        og.appendChild(o);
-      });
-      sel.appendChild(og);
-      setKeyStatus('✓ API Key válida!', true);
-      setStatus(vozes.length + ' voz(es) em português brasileiro encontrada(s)!');
+    if (premade.length === 0) {
+      sel.innerHTML = '<option value="">Nenhuma voz disponível no plano free</option>';
+      setStatus('Nenhuma voz premade encontrada na sua conta.');
+      return;
     }
+
+    // Separa femininas e masculinas
+    const femininas = premade.filter(v => v.labels && v.labels.gender === 'female');
+    const masculinas = premade.filter(v => v.labels && v.labels.gender === 'male');
+    const outras = premade.filter(v => !v.labels || !v.labels.gender);
+
+    function addGroup(label, lista) {
+      if (!lista.length) return;
+      const og = document.createElement('optgroup');
+      og.label = label;
+      lista.forEach(v => {
+        const o = document.createElement('option');
+        o.value = v.voice_id;
+        const desc = v.labels && v.labels.description ? ' — ' + v.labels.description : '';
+        o.textContent = v.name + desc;
+        og.appendChild(o);
+      });
+      sel.appendChild(og);
+    }
+
+    addGroup('👩 Femininas (falam pt-BR com Multilingual v2)', femininas);
+    addGroup('👨 Masculinas (falam pt-BR com Multilingual v2)', masculinas);
+    addGroup('🔊 Outras', outras);
+
+    setKeyStatus('✓ API Key válida!', true);
+    setStatus(premade.length + ' voz(es) disponível(is) no seu plano. Use o modelo Multilingual v2 para português!');
 
   } catch (e) {
     sel.innerHTML = '<option value="">Erro de conexão</option>';
