@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Leitor de Voz Humana — ElevenLabs</title>
+  <title>🎙️ Leitor de Voz Humana — ElevenLabs</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -11,7 +11,7 @@
   <div class="container">
     <header>
       <h1>🎙️ Leitor de Voz Humana</h1>
-      <p class="subtitle">Powered by ElevenLabs — voz natural em português</p>
+      <p class="subtitle">Powered by ElevenLabs — voz natural e humaníssima em português</p>
     </header>
 
     <section class="card" id="secao-eleven">
@@ -23,7 +23,7 @@
       <p class="hint">
         Não tem conta? Crie grátis em
         <a href="https://elevenlabs.io" target="_blank">elevenlabs.io</a>
-        — 10.000 caracteres/mês gratuitos.
+        — 10.000 caracteres/mês gratuitos. Voz humaníssima, sem robô!
       </p>
       <p id="key-status" class="key-status"></p>
     </section>
@@ -39,7 +39,7 @@
         <div>
           <label class="label">🎤 Voz</label>
           <select id="voice">
-            <option value="">— Salve sua API Key para carregar as vozes —</option>
+            <option value="">👇 Salve sua API Key para carregar as vozes</option>
           </select>
           <p class="hint">As vozes são carregadas automaticamente da sua conta</p>
         </div>
@@ -54,15 +54,15 @@
         </div>
 
         <div>
-          <label class="label">📊 Estabilidade: <span id="stab-v">40</span>%</label>
-          <input type="range" id="stability" min="0" max="100" step="5" value="40" />
+          <label class="label">📊 Estabilidade: <span id="stab-v">50</span>%</label>
+          <input type="range" id="stability" min="0" max="100" step="5" value="50" />
           <p class="hint">Menor = mais expressiva e natural</p>
         </div>
 
         <div>
-          <label class="label">🎨 Estilo: <span id="style-v">35</span>%</label>
-          <input type="range" id="styleAmount" min="0" max="100" step="5" value="35" />
-          <p class="hint">Maior = mais emoção na voz</p>
+          <label class="label">🎨 Estilo: <span id="style-v">50</span>%</label>
+          <input type="range" id="styleAmount" min="0" max="100" step="5" value="50" />
+          <p class="hint">Maior = mais emoção e naturalidade na voz</p>
         </div>
       </div>
     </section>
@@ -76,7 +76,7 @@
     <div class="progress-bar">
       <div id="prog" class="progress-fill"></div>
     </div>
-    <p id="status" class="status-text">Cole sua API Key e escreva o texto para começar.</p>
+    <p id="status" class="status-text">🎙️ Cole sua API Key da ElevenLabs para começar com vozes HUMANÍSSIMAS!</p>
 
     <div id="cors-aviso" style="display:none; margin-bottom:1rem; padding:14px 16px; border-radius:10px; background:#FFF8E1; border:0.5px solid #F9A825;">
       <p style="font-size:14px; font-weight:500; color:#5D4037; margin:0 0 8px;">⚠️ Erro de conexão com a ElevenLabs</p>
@@ -94,15 +94,19 @@
     </div>
 
     <section class="card instrucoes" id="instrucoes">
-      <h2>Como usar</h2>
+      <h2>🚀 Como usar</h2>
       <ol>
-        <li>Crie uma conta gratuita em <a href="https://elevenlabs.io" target="_blank">elevenlabs.io</a></li>
+        <li>Crie uma conta <strong>gratuita</strong> em <a href="https://elevenlabs.io" target="_blank">elevenlabs.io</a></li>
         <li>Vá em <strong>Profile → API Key</strong> e copie sua chave</li>
-        <li>Cole a chave no campo acima e clique em <strong>Salvar</strong></li>
+        <li>Cole a chave no campo 🔑 acima e clique em <strong>Salvar</strong></li>
         <li>Digite ou cole o texto que deseja ouvir</li>
-        <li>Escolha a voz e clique em <strong>Gerar voz</strong></li>
-        <li>Ouça diretamente ou clique em <strong>Baixar MP3</strong></li>
+        <li>Escolha a voz (vozes humaníssimas!) e ajuste estabilidade/estilo</li>
+        <li>Clique em <strong>▶ Gerar voz</strong></li>
+        <li>Ouça diretamente ou clique em <strong>⬇ Baixar MP3</strong></li>
       </ol>
+      <p style="margin-top: 1rem; padding: 1rem; background: #e8f5e9; border-radius: 8px; color: #1b5e20; font-size: 14px;">
+        <strong>💡 Dica:</strong> Você tem <strong>10.000 caracteres grátis por mês</strong>. Após isso, você pode fazer upgrade ou aguardar o mês seguinte. As vozes ElevenLabs são <strong>as mais humaníssimas do mercado</strong> — praticamente indistinguíveis de um humano real!
+      </p>
     </section>
   </div>
 
