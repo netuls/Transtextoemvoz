@@ -27,10 +27,41 @@ function setKeyStatus(msg, ok) {
   el.style.color = ok ? '#3B6D11' : '#A32D2D';
 }
 
+function ehVozBrasileira(v) {
+  const nome = (v.name || '').toLowerCase();
+  const labels = v.labels || {};
+  const accent = (labels.accent || '').toLowerCase();
+  const language = (labels.language || '').toLowerCase();
+  const description = (labels.description || '').toLowerCase();
+
+  return (
+    accent.includes('brazilian') ||
+    accent.includes('brasil') ||
+    accent.includes('portuguese') ||
+    language.includes('portuguese') ||
+    language.includes('pt-br') ||
+    language.includes('pt_br') ||
+    description.includes('brazilian') ||
+    description.includes('português') ||
+    description.includes('portuguese') ||
+    nome.includes('brasil') ||
+    nome.includes('portuguese') ||
+    nome.includes('luciana') ||
+    nome.includes('vitoria') ||
+    nome.includes('vitória') ||
+    nome.includes('camila') ||
+    nome.includes('fernanda') ||
+    nome.includes('ricardo') ||
+    nome.includes('antonio') ||
+    nome.includes('antônio')
+  );
+}
+
 async function carregarVozes(key) {
-  setStatus('Carregando vozes da sua conta...');
+  setStatus('Carregando vozes em português brasileiro...');
   const sel = document.getElementById('voice');
   sel.innerHTML = '<option value="">Carregando...</option>';
+  document.getElementById('cors-aviso').style.display = 'none';
 
   try {
     const res = await fetch('https://api.elevenlabs.io/v1/voices', {
@@ -43,8 +74,8 @@ async function carregarVozes(key) {
 
     if (res.status === 401) {
       sel.innerHTML = '<option value="">API Key inválida</option>';
-      setKeyStatus('✗ API Key inválida ou expirada.', false);
-      setStatus('Verifique sua API Key no site da ElevenLabs.');
+      setKeyStatus('✗ API Key inválida. Verifique no site da ElevenLabs.', false);
+      setStatus('API Key incorreta.');
       return;
     }
 
@@ -56,39 +87,31 @@ async function carregarVozes(key) {
 
     const data = await res.json();
 
-    if (!data.voices || data.voices.length === 0) {
-      sel.innerHTML = '<option value="">Nenhuma voz encontrada</option>';
-      setStatus('Nenhuma voz na sua conta.');
-      return;
-    }
+    // Filtra vozes brasileiras
+    const vozesБР = data.voices.filter(ehVozBrasileira);
+
+    // Se não achar nenhuma com o filtro, mostra todas com aviso
+    const vozes = vozesБР.length > 0 ? vozesБР : data.voices;
+    const aviso = vozesБР.length === 0;
 
     sel.innerHTML = '';
 
-    // Agrupa por categoria
-    const grupos = {};
-    data.voices.forEach(v => {
-      const cat = v.category || 'other';
-      if (!grupos[cat]) grupos[cat] = [];
-      grupos[cat].push(v);
-    });
-
-    const nomes = {
-      premade:      '✅ Vozes do plano gratuito',
-      cloned:       '⭐ Minhas vozes clonadas',
-      generated:    '🎨 Vozes geradas',
-      professional: '🏆 Vozes profissionais',
-      other:        '🔊 Outras vozes'
-    };
-
-    // Premade primeiro
-    const ordem = ['premade', 'cloned', 'generated', 'professional', 'other'];
-    let total = 0;
-
-    ordem.forEach(cat => {
-      if (!grupos[cat] || !grupos[cat].length) return;
+    if (aviso) {
       const og = document.createElement('optgroup');
-      og.label = nomes[cat] || cat;
-      grupos[cat].forEach(v => {
+      og.label = '⚠️ Nenhuma voz pt-BR encontrada — mostrando todas';
+      vozes.forEach(v => {
+        const o = document.createElement('option');
+        o.value = v.voice_id;
+        const gender = v.labels && v.labels.gender ? v.labels.gender : '';
+        o.textContent = v.name + (gender ? ' — ' + gender : '');
+        og.appendChild(o);
+      });
+      sel.appendChild(og);
+      setStatus('Nenhuma voz pt-BR encontrada. Mostrando todas as ' + vozes.length + ' vozes disponíveis.');
+    } else {
+      const og = document.createElement('optgroup');
+      og.label = '🇧🇷 Vozes em Português Brasileiro';
+      vozes.forEach(v => {
         const o = document.createElement('option');
         o.value = v.voice_id;
         const gender = v.labels && v.labels.gender ? v.labels.gender : '';
@@ -96,21 +119,16 @@ async function carregarVozes(key) {
         const desc = [gender, accent].filter(Boolean).join(', ');
         o.textContent = v.name + (desc ? ' — ' + desc : '');
         og.appendChild(o);
-        total++;
       });
       sel.appendChild(og);
-    });
-
-    setKeyStatus('✓ API Key válida!', true);
-    setStatus(total + ' voz(es) carregada(s)! Escolha uma e clique em Gerar voz.');
+      setKeyStatus('✓ API Key válida!', true);
+      setStatus(vozes.length + ' voz(es) em português brasileiro encontrada(s)!');
+    }
 
   } catch (e) {
-    // Erro de rede / CORS
     sel.innerHTML = '<option value="">Erro de conexão</option>';
     setStatus('Erro de rede: ' + e.message);
     setKeyStatus('✗ Não foi possível conectar.', false);
-
-    // Mostra aviso de CORS
     document.getElementById('cors-aviso').style.display = 'block';
   }
 }
@@ -122,7 +140,7 @@ async function gerarVoz() {
 
   if (!key) { setStatus('Cole sua API Key primeiro!'); return; }
   if (!txt) { setStatus('Digite algum texto primeiro!'); return; }
-  if (!voiceId) { setStatus('Carregue as vozes salvando a API Key!'); return; }
+  if (!voiceId) { setStatus('Salve a API Key para carregar as vozes!'); return; }
 
   const model = document.getElementById('model').value;
   const stability = parseInt(document.getElementById('stability').value) / 100;
@@ -177,8 +195,8 @@ async function gerarVoz() {
     document.getElementById('player-wrap').style.display = 'block';
     player.play();
 
-    player.onplay = function() { setStatus('Reproduzindo...'); setProgress(100); };
-    player.onended = function() { setStatus('Concluído!'); };
+    player.onplay = function () { setStatus('Reproduzindo...'); setProgress(100); };
+    player.onended = function () { setStatus('Concluído!'); };
 
     document.getElementById('btnDownload').disabled = false;
     document.getElementById('cors-aviso').style.display = 'none';
@@ -210,7 +228,7 @@ function baixarAudio() {
 function setStatus(t) { document.getElementById('status').textContent = t; }
 function setProgress(p) { document.getElementById('prog').style.width = p + '%'; }
 
-window.addEventListener('DOMContentLoaded', function() {
+window.addEventListener('DOMContentLoaded', function () {
   var saved = localStorage.getItem('el_api_key');
   if (saved) {
     savedKey = saved;
