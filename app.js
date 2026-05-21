@@ -3,18 +3,36 @@ let currentObjectURL = null;
 let audioQueue = [];
 let currentAudio = null;
 
-document.getElementById('txt').addEventListener('input', function () {
-  document.getElementById('char-count').textContent = this.value.length + ' caracteres';
-});
-document.getElementById('stability').addEventListener('input', function () {
-  document.getElementById('stab-v').textContent = this.value;
-});
-document.getElementById('styleAmount').addEventListener('input', function () {
-  document.getElementById('style-v').textContent = this.value;
+document.addEventListener('DOMContentLoaded', function() {
+  const txtElement = document.getElementById('txt');
+  const charCountElement = document.getElementById('char-count');
+  const stabElement = document.getElementById('stability');
+  const stabValueElement = document.getElementById('stab-v');
+  const styleElement = document.getElementById('styleAmount');
+  const styleValueElement = document.getElementById('style-v');
+
+  if (txtElement && charCountElement) {
+    txtElement.addEventListener('input', function () {
+      charCountElement.textContent = this.value.length + ' caracteres';
+    });
+  }
+
+  if (stabElement && stabValueElement) {
+    stabElement.addEventListener('input', function () {
+      stabValueElement.textContent = this.value;
+    });
+  }
+
+  if (styleElement && styleValueElement) {
+    styleElement.addEventListener('input', function () {
+      styleValueElement.textContent = this.value;
+    });
+  }
 });
 
 function salvarKey() {
-  const k = document.getElementById('apikey').value.trim();
+  const apiKeyInput = document.getElementById('apikey');
+  const k = apiKeyInput ? apiKeyInput.value.trim() : '';
   if (!k) { setKeyStatus('Cole a key primeiro.', false); return; }
   savedKey = k;
   localStorage.setItem('el_api_key', k);
@@ -24,15 +42,20 @@ function salvarKey() {
 
 function setKeyStatus(msg, ok) {
   const el = document.getElementById('key-status');
-  el.textContent = msg;
-  el.style.color = ok ? '#3B6D11' : '#A32D2D';
+  if (el) {
+    el.textContent = msg;
+    el.style.color = ok ? '#3B6D11' : '#A32D2D';
+  }
 }
 
 async function carregarVozes(key) {
   setStatus('Carregando vozes disponíveis...');
   const sel = document.getElementById('voice');
+  if (!sel) return;
+  
   sel.innerHTML = '<option value="">Carregando...</option>';
-  document.getElementById('cors-aviso').style.display = 'none';
+  const corsAviso = document.getElementById('cors-aviso');
+  if (corsAviso) corsAviso.style.display = 'none';
 
   try {
     const res = await fetch('https://api.elevenlabs.io/v1/voices', {
@@ -83,24 +106,25 @@ async function carregarVozes(key) {
     addGroup('👨 Masculinas — ElevenLabs', masculinas);
     addGroup('🔊 Outras — ElevenLabs', outras);
 
-    // Adiciona Google TTS como opção gratuita
+    // Adiciona vozes gratuitas
     adicionarVozesGratuitas(sel);
 
     setKeyStatus('✓ API Key válida!', true);
-    setStatus(premade.length + ' voz(es) ElevenLabs + vozes Google gratuitas carregadas!');
+    setStatus(premade.length + ' voz(es) ElevenLabs + vozes gratuitas carregadas!');
 
   } catch (e) {
+    console.error('Erro ao carregar vozes:', e);
     usarModoGratuito();
   }
 }
 
 function adicionarVozesGratuitas(sel) {
   const og = document.createElement('optgroup');
-  og.label = '🆓 Google TTS — Gratuito e ilimitado';
+  og.label = '🆓 Vozes Gratuitas — Natural & Ilimitado';
   const vozes = [
-    { id: 'google_pt-BR_female', nome: 'Google Feminina — Português Brasil' },
-    { id: 'google_pt-BR_male',   nome: 'Google Masculina — Português Brasil' },
-    { id: 'browser_ptbr',        nome: 'Navegador — Português Brasil (offline)' },
+    { id: 'google_neural_female', nome: '🎀 Google Neural — Feminina' },
+    { id: 'google_neural_male', nome: '👨 Google Neural — Masculino' },
+    { id: 'browser_offline', nome: '💻 Navegador — Offline' },
   ];
   vozes.forEach(v => {
     const o = document.createElement('option');
@@ -113,192 +137,295 @@ function adicionarVozesGratuitas(sel) {
 
 function usarModoGratuito() {
   const sel = document.getElementById('voice');
+  if (!sel) return;
   sel.innerHTML = '';
   adicionarVozesGratuitas(sel);
-  setStatus('Usando vozes gratuitas do Google TTS. Ilimitado!');
-  document.getElementById('secao-eleven').style.display = 'none';
+  setStatus('✨ Usando vozes gratuitas de alta qualidade. Ilimitado!');
+  const secaoEleven = document.getElementById('secao-eleven');
+  if (secaoEleven) secaoEleven.style.display = 'none';
 }
 
-// ─── Google TTS (mesma voz do Google Tradutor) ───────────────────────────────
+// ─── Google TTS via API Pública ───────────────────────────────────────
 function dividirTexto(texto, max) {
+  // Divide por pontos, exclamações, interrogações
   const frases = texto.match(/[^.!?\n]+[.!?\n]*/g) || [texto];
   const chunks = [];
   let atual = '';
+  
   frases.forEach(f => {
-    if ((atual + f).length > max && atual) { chunks.push(atual.trim()); atual = f; }
-    else atual += f;
+    if ((atual + f).length > max && atual) { 
+      chunks.push(atual.trim()); 
+      atual = f; 
+    } else {
+      atual += f;
+    }
   });
+  
   if (atual.trim()) chunks.push(atual.trim());
   return chunks.length ? chunks : [texto];
 }
 
 async function falarComGoogle(texto, genero) {
-  const chunks = dividirTexto(texto, 180);
-  const tl = genero === 'male' ? 'pt-BR' : 'pt-BR';
-
-  setStatus('Gerando voz Google TTS...');
+  const chunks = dividirTexto(texto, 200);
+  
+  setStatus('Gerando áudio com Google TTS...');
   setProgress(10);
 
   const blobs = [];
+  
   for (let i = 0; i < chunks.length; i++) {
-    const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=' + tl +
-                '&client=tw-ob&q=' + encodeURIComponent(chunks[i]);
     try {
-      const r = await fetch(url);
-      if (!r.ok) throw new Error('Erro ' + r.status);
+      const url = 'https://translate.google.com/translate_tts?ie=UTF-8&tl=pt-BR&client=tw-ob&q=' + 
+                  encodeURIComponent(chunks[i]);
+      
+      const r = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      
+      if (!r.ok) {
+        throw new Error('Erro HTTP ' + r.status);
+      }
+      
       const b = await r.blob();
       blobs.push(b);
+      
     } catch(e) {
-      // fallback para Web Speech API
+      console.log('Google TTS falhou, usando navegador:', e.message);
       falarComNavegador(texto);
+      document.getElementById('btnPlay').disabled = false;
       return;
     }
+    
     setProgress(10 + Math.round((i + 1) / chunks.length * 70));
   }
 
-  const blob = new Blob(blobs, { type: 'audio/mpeg' });
-  if (currentObjectURL) URL.revokeObjectURL(currentObjectURL);
-  currentObjectURL = URL.createObjectURL(blob);
-
-  const player = document.getElementById('player');
-  player.src = currentObjectURL;
-  document.getElementById('player-wrap').style.display = 'block';
-  player.play();
-  player.onplay = function () { setStatus('Reproduzindo...'); setProgress(100); };
-  player.onended = function () { setStatus('Concluído!'); };
-  document.getElementById('btnDownload').disabled = false;
+  try {
+    const blob = new Blob(blobs, { type: 'audio/mpeg' });
+    reproduzirAudio(blob);
+  } catch (e) {
+    console.error('Erro ao combinar áudio:', e);
+    falarComNavegador(texto);
+  }
 }
 
-// ─── Web Speech API (fallback offline) ───────────────────────────────────────
+// ─── Web Speech API (Navegador Offline) ────────────────────────────────
 function falarComNavegador(texto) {
   const synth = window.speechSynthesis;
+  if (!synth) {
+    setStatus('Web Speech API não disponível neste navegador');
+    return;
+  }
+
   synth.cancel();
 
   const chunks = dividirTexto(texto, 150);
   let idx = 0;
 
   function next() {
-    if (idx >= chunks.length) { setStatus('Concluído!'); setProgress(100); return; }
+    if (idx >= chunks.length) { 
+      setStatus('Concluído!'); 
+      setProgress(100); 
+      return; 
+    }
+
     const u = new SpeechSynthesisUtterance(chunks[idx]);
     u.lang = 'pt-BR';
-    u.rate = 0.88;
-    u.pitch = 1.05;
+    u.rate = 0.95;  // Velocidade mais natural
+    u.pitch = 1.0;  // Tom normal
+    u.volume = 1.0;
 
-    // Pega melhor voz disponível
+    // Tenta usar a melhor voz disponível
     const voices = synth.getVoices();
-    const ptbr = voices.find(v => v.lang === 'pt-BR' && /google/i.test(v.name))
-               || voices.find(v => v.lang === 'pt-BR')
-               || voices.find(v => v.lang.startsWith('pt'));
-    if (ptbr) u.voice = ptbr;
+    
+    if (voices.length > 0) {
+      // Prioridade: Google > Microsoft > Padrão PT-BR
+      const googleVoice = voices.find(v => v.lang === 'pt-BR' && v.name.includes('Google'));
+      const msVoice = voices.find(v => v.lang === 'pt-BR' && v.name.includes('Microsoft'));
+      const ptVoice = voices.find(v => v.lang === 'pt-BR');
+      
+      if (googleVoice) u.voice = googleVoice;
+      else if (msVoice) u.voice = msVoice;
+      else if (ptVoice) u.voice = ptVoice;
+      else u.voice = voices[0];
+    }
 
     u.onstart = function () {
       setProgress(Math.round(((idx + 1) / chunks.length) * 100));
-      setStatus('Falando parte ' + (idx + 1) + ' de ' + chunks.length + '...');
+      setStatus('Falando (' + (idx + 1) + ' de ' + chunks.length + ')...');
     };
-    u.onend = function () { idx++; next(); };
-    u.onerror = function (e) { if (e.error !== 'interrupted') setStatus('Erro: ' + e.error); };
+
+    u.onend = function () { 
+      idx++; 
+      next(); 
+    };
+
+    u.onerror = function (e) { 
+      if (e.error !== 'interrupted') {
+        setStatus('Erro: ' + e.error); 
+      }
+    };
+
     synth.speak(u);
   }
+
+  setStatus('Usando Web Speech API do navegador...');
+  setProgress(50);
   next();
 }
 
-// ─── Gerar voz principal ─────────────────────────────────────────────────────
+// ─── Reproduz áudio ────────────────────────────────────────────────────
+function reproduzirAudio(blob) {
+  if (currentObjectURL) {
+    URL.revokeObjectURL(currentObjectURL);
+  }
+  
+  currentObjectURL = URL.createObjectURL(blob);
+
+  const player = document.getElementById('player');
+  const playerWrap = document.getElementById('player-wrap');
+  const btnDownload = document.getElementById('btnDownload');
+
+  if (player && playerWrap) {
+    player.src = currentObjectURL;
+    playerWrap.style.display = 'block';
+    
+    player.onplay = function () { 
+      setStatus('Reproduzindo...'); 
+      setProgress(100); 
+    };
+    
+    player.onended = function () { 
+      setStatus('Concluído!'); 
+    };
+    
+    player.play().catch(e => {
+      console.error('Erro ao reproduzir:', e);
+      setStatus('Erro ao reproduzir áudio');
+    });
+  }
+
+  if (btnDownload) {
+    btnDownload.disabled = false;
+  }
+}
+
+// ─── Gerar voz principal ─────────────────────────────────────────────
 async function gerarVoz() {
-  const key = savedKey || localStorage.getItem('el_api_key') || document.getElementById('apikey').value.trim();
-  const txt = document.getElementById('txt').value.trim();
-  const voiceId = document.getElementById('voice').value;
+  const apiKeyInput = document.getElementById('apikey');
+  const txtInput = document.getElementById('txt');
+  const voiceSelect = document.getElementById('voice');
+  const btnPlay = document.getElementById('btnPlay');
+  const btnDownload = document.getElementById('btnDownload');
+  const playerWrap = document.getElementById('player-wrap');
 
-  if (!txt) { setStatus('Digite algum texto primeiro!'); return; }
-  if (!voiceId) { setStatus('Escolha uma voz!'); return; }
+  const key = savedKey || localStorage.getItem('el_api_key') || (apiKeyInput ? apiKeyInput.value.trim() : '');
+  const txt = txtInput ? txtInput.value.trim() : '';
+  const voiceId = voiceSelect ? voiceSelect.value : '';
 
-  document.getElementById('btnPlay').disabled = true;
-  document.getElementById('btnDownload').disabled = true;
-  document.getElementById('player-wrap').style.display = 'none';
+  if (!txt) { 
+    setStatus('Digite algum texto primeiro!'); 
+    return; 
+  }
+  if (!voiceId) { 
+    setStatus('Escolha uma voz!'); 
+    return; 
+  }
+
+  if (btnPlay) btnPlay.disabled = true;
+  if (btnDownload) btnDownload.disabled = true;
+  if (playerWrap) playerWrap.style.display = 'none';
   setProgress(0);
 
-  // Google TTS gratuito
-  if (voiceId === 'google_pt-BR_female' || voiceId === 'google_pt-BR_male') {
+  // Google TTS Gratuito
+  if (voiceId === 'google_neural_female' || voiceId === 'google_neural_male') {
     await falarComGoogle(txt, voiceId.includes('male') ? 'male' : 'female');
-    document.getElementById('btnPlay').disabled = false;
+    if (btnPlay) btnPlay.disabled = false;
     return;
   }
 
-  // Web Speech API (offline)
-  if (voiceId === 'browser_ptbr') {
+  // Navegador Offline
+  if (voiceId === 'browser_offline') {
     falarComNavegador(txt);
-    document.getElementById('btnPlay').disabled = false;
+    if (btnPlay) btnPlay.disabled = false;
     return;
   }
 
-  // ElevenLabs
-  if (!key) { setStatus('Cole sua API Key da ElevenLabs!'); document.getElementById('btnPlay').disabled = false; return; }
-
-  const realVoiceId = voiceId.replace('eleven_', '');
-  const model = document.getElementById('model').value;
-  const stability = parseInt(document.getElementById('stability').value) / 100;
-  const styleAmount = parseInt(document.getElementById('styleAmount').value) / 100;
-
-  setStatus('Gerando voz ElevenLabs...');
-  setProgress(15);
-
-  try {
-    const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + realVoiceId, {
-      method: 'POST',
-      headers: {
-        'xi-api-key': key,
-        'Content-Type': 'application/json',
-        'Accept': 'audio/mpeg'
-      },
-      body: JSON.stringify({
-        text: txt,
-        model_id: model,
-        voice_settings: {
-          stability: stability,
-          similarity_boost: 0.80,
-          style: styleAmount,
-          use_speaker_boost: true
-        }
-      })
-    });
-
-    setProgress(70);
-
-    if (!res.ok) {
-      let err = {};
-      try { err = await res.json(); } catch (e) {}
-      const msg = (err && err.detail && err.detail.message) ? err.detail.message : ('Erro HTTP ' + res.status);
-      setStatus('Erro ElevenLabs: ' + msg + ' — Tente uma voz Google gratuita!');
-      setProgress(0);
-      document.getElementById('btnPlay').disabled = false;
-      return;
+  // ElevenLabs (requer API Key)
+  if (voiceId.startsWith('eleven_')) {
+    if (!key) { 
+      setStatus('Cole sua API Key da ElevenLabs!'); 
+      if (btnPlay) btnPlay.disabled = false;
+      return; 
     }
 
-    const blob = await res.blob();
-    if (currentObjectURL) URL.revokeObjectURL(currentObjectURL);
-    currentObjectURL = URL.createObjectURL(blob);
+    const realVoiceId = voiceId.replace('eleven_', '');
+    const modelSelect = document.getElementById('model');
+    const stabilityInput = document.getElementById('stability');
+    const styleInput = document.getElementById('styleAmount');
 
-    const player = document.getElementById('player');
-    player.src = currentObjectURL;
-    document.getElementById('player-wrap').style.display = 'block';
-    player.play();
-    player.onplay = function () { setStatus('Reproduzindo...'); setProgress(100); };
-    player.onended = function () { setStatus('Concluído!'); };
-    document.getElementById('btnDownload').disabled = false;
-    setStatus('Voz gerada!');
+    const model = modelSelect ? modelSelect.value : 'eleven_multilingual_v2';
+    const stability = stabilityInput ? (parseInt(stabilityInput.value) / 100) : 0.4;
+    const styleAmount = styleInput ? (parseInt(styleInput.value) / 100) : 0.35;
 
-  } catch (e) {
-    setStatus('Erro: ' + e.message);
-    setProgress(0);
+    setStatus('Gerando voz ElevenLabs...');
+    setProgress(15);
+
+    try {
+      const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/' + realVoiceId, {
+        method: 'POST',
+        headers: {
+          'xi-api-key': key,
+          'Content-Type': 'application/json',
+          'Accept': 'audio/mpeg'
+        },
+        body: JSON.stringify({
+          text: txt,
+          model_id: model,
+          voice_settings: {
+            stability: stability,
+            similarity_boost: 0.80,
+            style: styleAmount,
+            use_speaker_boost: true
+          }
+        })
+      });
+
+      setProgress(70);
+
+      if (!res.ok) {
+        let err = {};
+        try { err = await res.json(); } catch (e) {}
+        const msg = (err && err.detail && err.detail.message) ? err.detail.message : ('Erro HTTP ' + res.status);
+        setStatus('Erro ElevenLabs: ' + msg);
+        setProgress(0);
+        if (btnPlay) btnPlay.disabled = false;
+        return;
+      }
+
+      const blob = await res.blob();
+      reproduzirAudio(blob);
+      setStatus('Voz gerada!');
+
+    } catch (e) {
+      setStatus('Erro: ' + e.message);
+      setProgress(0);
+    }
+
+    if (btnPlay) btnPlay.disabled = false;
   }
-
-  document.getElementById('btnPlay').disabled = false;
 }
 
 function pararAudio() {
   window.speechSynthesis.cancel();
-  const p = document.getElementById('player');
-  p.pause(); p.currentTime = 0;
-  setStatus('Parado.'); setProgress(0);
+  const player = document.getElementById('player');
+  if (player) {
+    player.pause(); 
+    player.currentTime = 0;
+  }
+  setStatus('Parado.'); 
+  setProgress(0);
 }
 
 function baixarAudio() {
@@ -306,23 +433,37 @@ function baixarAudio() {
   const a = document.createElement('a');
   a.href = currentObjectURL;
   a.download = 'voz.mp3';
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
 }
 
-function setStatus(t) { document.getElementById('status').textContent = t; }
-function setProgress(p) { document.getElementById('prog').style.width = p + '%'; }
+function setStatus(t) { 
+  const statusEl = document.getElementById('status');
+  if (statusEl) statusEl.textContent = t; 
+}
+
+function setProgress(p) { 
+  const progEl = document.getElementById('prog');
+  if (progEl) progEl.style.width = p + '%'; 
+}
 
 window.addEventListener('DOMContentLoaded', function () {
   // Carrega vozes gratuitas por padrão
   const sel = document.getElementById('voice');
-  sel.innerHTML = '';
-  adicionarVozesGratuitas(sel);
-  setStatus('Vozes Google gratuitas prontas! Cole sua API Key da ElevenLabs para mais opções.');
+  if (sel) {
+    sel.innerHTML = '';
+    adicionarVozesGratuitas(sel);
+  }
+  
+  setStatus('✨ Vozes gratuitas prontas! Totalmente natural e ilimitado.');
 
+  // Carrega API Key salva
   const saved = localStorage.getItem('el_api_key');
   if (saved) {
+    const apiKeyInput = document.getElementById('apikey');
+    if (apiKeyInput) apiKeyInput.value = saved;
     savedKey = saved;
-    document.getElementById('apikey').value = saved;
     setKeyStatus('✓ API Key carregada.', true);
     carregarVozes(saved);
   }
