@@ -34,16 +34,34 @@ async function carregarVozes(key) {
 
   try {
     const res = await fetch('https://api.elevenlabs.io/v1/voices', {
-      headers: { 'xi-api-key': key }
+      method: 'GET',
+      headers: {
+        'xi-api-key': key,
+        'Accept': 'application/json'
+      }
     });
 
+    if (res.status === 401) {
+      sel.innerHTML = '<option value="">API Key inválida</option>';
+      setKeyStatus('✗ API Key inválida ou expirada.', false);
+      setStatus('Verifique sua API Key no site da ElevenLabs.');
+      return;
+    }
+
     if (!res.ok) {
-      sel.innerHTML = '<option value="">Erro ao carregar vozes</option>';
-      setStatus('Erro ao buscar vozes. Verifique sua API Key.');
+      sel.innerHTML = '<option value="">Erro HTTP ' + res.status + '</option>';
+      setStatus('Erro ' + res.status + ' ao buscar vozes.');
       return;
     }
 
     const data = await res.json();
+
+    if (!data.voices || data.voices.length === 0) {
+      sel.innerHTML = '<option value="">Nenhuma voz encontrada</option>';
+      setStatus('Nenhuma voz na sua conta.');
+      return;
+    }
+
     sel.innerHTML = '';
 
     // Agrupa por categoria
@@ -55,22 +73,26 @@ async function carregarVozes(key) {
     });
 
     const nomes = {
-      premade: '✅ Vozes do plano gratuito',
-      cloned: '⭐ Minhas vozes clonadas',
-      generated: '🎨 Vozes geradas',
+      premade:      '✅ Vozes do plano gratuito',
+      cloned:       '⭐ Minhas vozes clonadas',
+      generated:    '🎨 Vozes geradas',
       professional: '🏆 Vozes profissionais',
-      other: '🔊 Outras vozes'
+      other:        '🔊 Outras vozes'
     };
 
+    // Premade primeiro
+    const ordem = ['premade', 'cloned', 'generated', 'professional', 'other'];
     let total = 0;
-    Object.keys(grupos).forEach(cat => {
+
+    ordem.forEach(cat => {
+      if (!grupos[cat] || !grupos[cat].length) return;
       const og = document.createElement('optgroup');
       og.label = nomes[cat] || cat;
       grupos[cat].forEach(v => {
         const o = document.createElement('option');
         o.value = v.voice_id;
-        const gender = v.labels?.gender || '';
-        const accent = v.labels?.accent || '';
+        const gender = v.labels && v.labels.gender ? v.labels.gender : '';
+        const accent = v.labels && v.labels.accent ? v.labels.accent : '';
         const desc = [gender, accent].filter(Boolean).join(', ');
         o.textContent = v.name + (desc ? ' — ' + desc : '');
         og.appendChild(o);
@@ -79,16 +101,17 @@ async function carregarVozes(key) {
       sel.appendChild(og);
     });
 
-    if (total === 0) {
-      sel.innerHTML = '<option value="">Nenhuma voz encontrada</option>';
-      setStatus('Nenhuma voz encontrada na sua conta.');
-    } else {
-      setStatus(total + ' voz(es) carregada(s)! Escolha uma e clique em Gerar voz.');
-    }
+    setKeyStatus('✓ API Key válida!', true);
+    setStatus(total + ' voz(es) carregada(s)! Escolha uma e clique em Gerar voz.');
 
   } catch (e) {
+    // Erro de rede / CORS
     sel.innerHTML = '<option value="">Erro de conexão</option>';
-    setStatus('Erro ao carregar vozes: ' + e.message);
+    setStatus('Erro de rede: ' + e.message);
+    setKeyStatus('✗ Não foi possível conectar.', false);
+
+    // Mostra aviso de CORS
+    document.getElementById('cors-aviso').style.display = 'block';
   }
 }
 
@@ -99,7 +122,7 @@ async function gerarVoz() {
 
   if (!key) { setStatus('Cole sua API Key primeiro!'); return; }
   if (!txt) { setStatus('Digite algum texto primeiro!'); return; }
-  if (!voiceId) { setStatus('Salve a API Key para carregar as vozes!'); return; }
+  if (!voiceId) { setStatus('Carregue as vozes salvando a API Key!'); return; }
 
   const model = document.getElementById('model').value;
   const stability = parseInt(document.getElementById('stability').value) / 100;
@@ -136,7 +159,7 @@ async function gerarVoz() {
     if (!res.ok) {
       let err = {};
       try { err = await res.json(); } catch (e) {}
-      const msg = (err?.detail?.message) || ('Erro HTTP ' + res.status);
+      const msg = (err && err.detail && err.detail.message) ? err.detail.message : ('Erro HTTP ' + res.status);
       setStatus('Erro: ' + msg);
       setProgress(0);
       document.getElementById('btnPlay').disabled = false;
@@ -154,14 +177,16 @@ async function gerarVoz() {
     document.getElementById('player-wrap').style.display = 'block';
     player.play();
 
-    player.onplay = () => { setStatus('Reproduzindo...'); setProgress(100); };
-    player.onended = () => setStatus('Concluído!');
+    player.onplay = function() { setStatus('Reproduzindo...'); setProgress(100); };
+    player.onended = function() { setStatus('Concluído!'); };
 
     document.getElementById('btnDownload').disabled = false;
+    document.getElementById('cors-aviso').style.display = 'none';
     setStatus('Voz gerada com sucesso!');
 
   } catch (e) {
     setStatus('Erro de conexão: ' + e.message);
+    document.getElementById('cors-aviso').style.display = 'block';
     setProgress(0);
   }
 
@@ -169,14 +194,14 @@ async function gerarVoz() {
 }
 
 function pararAudio() {
-  const p = document.getElementById('player');
+  var p = document.getElementById('player');
   p.pause(); p.currentTime = 0;
   setStatus('Parado.'); setProgress(0);
 }
 
 function baixarAudio() {
   if (!currentObjectURL) return;
-  const a = document.createElement('a');
+  var a = document.createElement('a');
   a.href = currentObjectURL;
   a.download = 'voz-elevenlabs.mp3';
   a.click();
@@ -185,8 +210,8 @@ function baixarAudio() {
 function setStatus(t) { document.getElementById('status').textContent = t; }
 function setProgress(p) { document.getElementById('prog').style.width = p + '%'; }
 
-window.addEventListener('DOMContentLoaded', () => {
-  const saved = localStorage.getItem('el_api_key');
+window.addEventListener('DOMContentLoaded', function() {
+  var saved = localStorage.getItem('el_api_key');
   if (saved) {
     savedKey = saved;
     document.getElementById('apikey').value = saved;
