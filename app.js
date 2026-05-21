@@ -28,25 +28,45 @@ function setKeyStatus(msg, ok) {
 }
 
 async function carregarVozes(key) {
-  setStatus('Carregando vozes disponíveis na sua conta...');
+  setStatus('Carregando vozes da sua conta...');
+  const sel = document.getElementById('voice');
+  sel.innerHTML = '<option value="">Carregando...</option>';
+
   try {
     const res = await fetch('https://api.elevenlabs.io/v1/voices', {
       headers: { 'xi-api-key': key }
     });
-    if (!res.ok) { setStatus('Pronto! Use as vozes padrão da lista.'); return; }
+
+    if (!res.ok) {
+      sel.innerHTML = '<option value="">Erro ao carregar vozes</option>';
+      setStatus('Erro ao buscar vozes. Verifique sua API Key.');
+      return;
+    }
 
     const data = await res.json();
-    const sel = document.getElementById('voice');
     sel.innerHTML = '';
 
-    const minhas = data.voices.filter(v => v.category === 'cloned' || v.category === 'generated' || v.category === 'professional');
-    const premade = data.voices.filter(v => v.category === 'premade');
+    // Agrupa por categoria
+    const grupos = {};
+    data.voices.forEach(v => {
+      const cat = v.category || 'other';
+      if (!grupos[cat]) grupos[cat] = [];
+      grupos[cat].push(v);
+    });
 
-    function addGroup(label, list) {
-      if (!list.length) return;
+    const nomes = {
+      premade: '✅ Vozes do plano gratuito',
+      cloned: '⭐ Minhas vozes clonadas',
+      generated: '🎨 Vozes geradas',
+      professional: '🏆 Vozes profissionais',
+      other: '🔊 Outras vozes'
+    };
+
+    let total = 0;
+    Object.keys(grupos).forEach(cat => {
       const og = document.createElement('optgroup');
-      og.label = label;
-      list.forEach(v => {
+      og.label = nomes[cat] || cat;
+      grupos[cat].forEach(v => {
         const o = document.createElement('option');
         o.value = v.voice_id;
         const gender = v.labels?.gender || '';
@@ -54,38 +74,38 @@ async function carregarVozes(key) {
         const desc = [gender, accent].filter(Boolean).join(', ');
         o.textContent = v.name + (desc ? ' — ' + desc : '');
         og.appendChild(o);
+        total++;
       });
       sel.appendChild(og);
-    }
+    });
 
-    addGroup('⭐ Minhas vozes', minhas);
-    addGroup('✅ Disponíveis no seu plano', premade);
-
-    const total = minhas.length + premade.length;
-    if (!total) {
-      sel.innerHTML = '<option>Nenhuma voz encontrada</option>';
-      setStatus('Verifique sua API Key.');
+    if (total === 0) {
+      sel.innerHTML = '<option value="">Nenhuma voz encontrada</option>';
+      setStatus('Nenhuma voz encontrada na sua conta.');
     } else {
       setStatus(total + ' voz(es) carregada(s)! Escolha uma e clique em Gerar voz.');
     }
+
   } catch (e) {
-    setStatus('Pronto! Use as vozes padrão da lista.');
+    sel.innerHTML = '<option value="">Erro de conexão</option>';
+    setStatus('Erro ao carregar vozes: ' + e.message);
   }
 }
 
 async function gerarVoz() {
   const key = savedKey || localStorage.getItem('el_api_key') || document.getElementById('apikey').value.trim();
   const txt = document.getElementById('txt').value.trim();
+  const voiceId = document.getElementById('voice').value;
 
   if (!key) { setStatus('Cole sua API Key primeiro!'); return; }
   if (!txt) { setStatus('Digite algum texto primeiro!'); return; }
+  if (!voiceId) { setStatus('Salve a API Key para carregar as vozes!'); return; }
 
-  const voiceId = document.getElementById('voice').value;
   const model = document.getElementById('model').value;
   const stability = parseInt(document.getElementById('stability').value) / 100;
   const styleAmount = parseInt(document.getElementById('styleAmount').value) / 100;
 
-  setStatus('Conectando à ElevenLabs...');
+  setStatus('Gerando voz...');
   setProgress(15);
   document.getElementById('btnPlay').disabled = true;
   document.getElementById('btnDownload').disabled = true;
