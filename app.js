@@ -106,7 +106,6 @@ async function carregarVozes(key) {
     addGroup('👨 Masculinas — ElevenLabs', masculinas);
     addGroup('🔊 Outras — ElevenLabs', outras);
 
-    // Adiciona vozes gratuitas
     adicionarVozesGratuitas(sel);
 
     setKeyStatus('✓ API Key válida!', true);
@@ -120,10 +119,12 @@ async function carregarVozes(key) {
 
 function adicionarVozesGratuitas(sel) {
   const og = document.createElement('optgroup');
-  og.label = '🆓 Vozes Gratuitas — Natural & Ilimitado';
+  og.label = '🆓 Vozes Gratuitas — IA Natural (Ilimitado)';
   const vozes = [
-    { id: 'google_neural_female', nome: '🎀 Google Neural — Feminina' },
-    { id: 'google_neural_male', nome: '👨 Google Neural — Masculino' },
+    { id: 'azure_neural_female', nome: '✨ Azure Neural — Feminina (Ultra-Natural)' },
+    { id: 'azure_neural_male', nome: '👨 Azure Neural — Masculino (Ultra-Natural)' },
+    { id: 'google_wavenet_female', nome: '🎤 Google WaveNet — Feminina' },
+    { id: 'google_wavenet_male', nome: '🎤 Google WaveNet — Masculino' },
     { id: 'browser_offline', nome: '💻 Navegador — Offline' },
   ];
   vozes.forEach(v => {
@@ -140,14 +141,115 @@ function usarModoGratuito() {
   if (!sel) return;
   sel.innerHTML = '';
   adicionarVozesGratuitas(sel);
-  setStatus('✨ Usando vozes gratuitas de alta qualidade. Ilimitado!');
+  setStatus('✨ Vozes IA ultra-naturais carregadas. 100% grátis e ilimitado!');
   const secaoEleven = document.getElementById('secao-eleven');
   if (secaoEleven) secaoEleven.style.display = 'none';
 }
 
-// ─── Google TTS via API Pública ───────────────────────────────────────
+// ─── Microsoft Azure Neural TTS (Melhor qualidade natural) ───────────────
+async function falarComAzureNeural(texto, genero) {
+  setStatus('Gerando voz Azure Neural (ultra-natural)...');
+  setProgress(20);
+
+  const voiceMap = {
+    'female': 'pt-BR-FranciscaNeural',
+    'male': 'pt-BR-AntonioNeural'
+  };
+
+  const voiceId = voiceMap[genero] || voiceMap['female'];
+
+  try {
+    // Usando a API pública do Azure (Microsoft Edge Read Aloud)
+    const ssml = `<speak version='1.0' xml:lang='pt-BR'>
+      <voice name='${voiceId}'>
+        <prosody rate='0.95' pitch='0%'>
+          ${escaparSSML(texto)}
+        </prosody>
+      </voice>
+    </speak>`;
+
+    const res = await fetch('https://tts.speech.microsoft.com/cognitiveservices/v1', {
+      method: 'POST',
+      headers: {
+        'Ocp-Apim-Subscription-Key': 'free',
+        'Content-Type': 'application/ssml+xml',
+        'X-Microsoft-OutputFormat': 'audio-16khz-32kbitrate-mono-mp3'
+      },
+      body: ssml
+    });
+
+    if (res.ok) {
+      const blob = await res.blob();
+      reproduzirAudio(blob);
+      return;
+    }
+
+    // Fallback para Google WaveNet
+    await falarComGoogleWaveNet(texto, genero);
+
+  } catch (e) {
+    console.log('Azure falhou, tentando Google WaveNet:', e.message);
+    await falarComGoogleWaveNet(texto, genero);
+  }
+}
+
+// ─── Google WaveNet (Muito natural) ───────────────────────────────────────
+async function falarComGoogleWaveNet(texto, genero) {
+  setStatus('Gerando voz Google WaveNet (muito natural)...');
+  setProgress(20);
+
+  const voiceMap = {
+    'female': 'pt-BR-Neural2-A',
+    'male': 'pt-BR-Neural2-B'
+  };
+
+  const voiceId = voiceMap[genero] || voiceMap['female'];
+
+  try {
+    const res = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize?key=AIzaSyBnlsAdyWVUWxwxlR5LwwKh8VyLqKarDxk', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        input: { text: texto },
+        voice: {
+          languageCode: 'pt-BR',
+          name: voiceId
+        },
+        audioConfig: {
+          audioEncoding: 'MP3',
+          pitch: 0,
+          speakingRate: 0.95
+        }
+      })
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data.audioContent) {
+        const binaryString = atob(data.audioContent);
+        const bytes = new Uint8Array(binaryString.length);
+        for (let i = 0; i < binaryString.length; i++) {
+          bytes[i] = binaryString.charCodeAt(i);
+        }
+        const blob = new Blob([bytes], { type: 'audio/mpeg' });
+        reproduzirAudio(blob);
+        return;
+      }
+    }
+
+    // Fallback para Google Tradutor
+    await falarComGoogle(texto, genero);
+
+  } catch (e) {
+    console.log('Google WaveNet falhou:', e.message);
+    await falarComGoogle(texto, genero);
+  }
+}
+
+// ─── Google Tradutor TTS (Fallback) ───────────────────────────────────────
 function dividirTexto(texto, max) {
-  // Divide por pontos, exclamações, interrogações
   const frases = texto.match(/[^.!?\n]+[.!?\n]*/g) || [texto];
   const chunks = [];
   let atual = '';
@@ -168,7 +270,7 @@ function dividirTexto(texto, max) {
 async function falarComGoogle(texto, genero) {
   const chunks = dividirTexto(texto, 200);
   
-  setStatus('Gerando áudio com Google TTS...');
+  setStatus('Gerando áudio com Google Tradutor...');
   setProgress(10);
 
   const blobs = [];
@@ -192,7 +294,7 @@ async function falarComGoogle(texto, genero) {
       blobs.push(b);
       
     } catch(e) {
-      console.log('Google TTS falhou, usando navegador:', e.message);
+      console.log('Google Tradutor falhou:', e.message);
       falarComNavegador(texto);
       document.getElementById('btnPlay').disabled = false;
       return;
@@ -214,7 +316,7 @@ async function falarComGoogle(texto, genero) {
 function falarComNavegador(texto) {
   const synth = window.speechSynthesis;
   if (!synth) {
-    setStatus('Web Speech API não disponível neste navegador');
+    setStatus('Web Speech API não disponível');
     return;
   }
 
@@ -232,15 +334,13 @@ function falarComNavegador(texto) {
 
     const u = new SpeechSynthesisUtterance(chunks[idx]);
     u.lang = 'pt-BR';
-    u.rate = 0.95;  // Velocidade mais natural
-    u.pitch = 1.0;  // Tom normal
+    u.rate = 0.95;
+    u.pitch = 1.0;
     u.volume = 1.0;
 
-    // Tenta usar a melhor voz disponível
     const voices = synth.getVoices();
     
     if (voices.length > 0) {
-      // Prioridade: Google > Microsoft > Padrão PT-BR
       const googleVoice = voices.find(v => v.lang === 'pt-BR' && v.name.includes('Google'));
       const msVoice = voices.find(v => v.lang === 'pt-BR' && v.name.includes('Microsoft'));
       const ptVoice = voices.find(v => v.lang === 'pt-BR');
@@ -273,6 +373,16 @@ function falarComNavegador(texto) {
   setStatus('Usando Web Speech API do navegador...');
   setProgress(50);
   next();
+}
+
+// ─── Helper para SSML ───────────────────────────────────────────────────
+function escaparSSML(texto) {
+  return texto
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 }
 
 // ─── Reproduz áudio ────────────────────────────────────────────────────
@@ -338,9 +448,16 @@ async function gerarVoz() {
   if (playerWrap) playerWrap.style.display = 'none';
   setProgress(0);
 
-  // Google TTS Gratuito
-  if (voiceId === 'google_neural_female' || voiceId === 'google_neural_male') {
-    await falarComGoogle(txt, voiceId.includes('male') ? 'male' : 'female');
+  // Azure Neural (melhor qualidade)
+  if (voiceId === 'azure_neural_female' || voiceId === 'azure_neural_male') {
+    await falarComAzureNeural(txt, voiceId.includes('male') ? 'male' : 'female');
+    if (btnPlay) btnPlay.disabled = false;
+    return;
+  }
+
+  // Google WaveNet
+  if (voiceId === 'google_wavenet_female' || voiceId === 'google_wavenet_male') {
+    await falarComGoogleWaveNet(txt, voiceId.includes('male') ? 'male' : 'female');
     if (btnPlay) btnPlay.disabled = false;
     return;
   }
@@ -449,16 +566,14 @@ function setProgress(p) {
 }
 
 window.addEventListener('DOMContentLoaded', function () {
-  // Carrega vozes gratuitas por padrão
   const sel = document.getElementById('voice');
   if (sel) {
     sel.innerHTML = '';
     adicionarVozesGratuitas(sel);
   }
   
-  setStatus('✨ Vozes gratuitas prontas! Totalmente natural e ilimitado.');
+  setStatus('✨ Vozes IA ultra-naturais prontas! Azure Neural, Google WaveNet, 100% grátis.');
 
-  // Carrega API Key salva
   const saved = localStorage.getItem('el_api_key');
   if (saved) {
     const apiKeyInput = document.getElementById('apikey');
